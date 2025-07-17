@@ -26,7 +26,6 @@ This project implements a modular and extensible interface for text generation u
 
 ## Sample Chat Interface
 
-### Chatbot with Multi-Turn API Responses
 ![Chatbot Screenshot](https://github.com/user-attachments/assets/c5526666-3250-434a-87e0-06c67da65cc2)
 ![Dropdown Prompt Screenshot](https://github.com/user-attachments/assets/1f3135a7-a703-44ed-828d-f35951a2471c)
 
