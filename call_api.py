@@ -1,53 +1,111 @@
+import os
+
 import requests
 
-API_URL = "https://ymgsslsjnx4ncugs.us-east-1.aws.endpoints.huggingface.cloud"
-headers = {
-    "Accept": "application/json",
-    "Content-Type": "application/json"
-}
 
-def query(payload):
-    response = requests.post(API_URL, headers=headers, json=payload)
-    return response.json()
+API_URL = os.getenv("HF_ENDPOINT_URL")
 
-def main():
-    # 1) In the first conversation
-    # user: Hello!
-    prompt_round1 = "<|im_start|>user\nHello!<|im_end|>\n<|im_start|>assistant\n"
-    data_round1 = {
-        "inputs": prompt_round1,
-        "parameters": {
-            "max_new_tokens": 50
-        }
+
+def query(payload: dict) -> list:
+    """Send a generation request to the configured inference endpoint."""
+
+    if not API_URL:
+        raise ValueError(
+            "HF_ENDPOINT_URL is not configured. "
+            "Set the environment variable before running this script."
+        )
+
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
     }
 
-    result_round1 = query(data_round1)
-    assistant_response_1 = result_round1[0]["generated_text"].replace(prompt_round1, "")
-
-    # 2) In the second conversation, merge the previous assistant response with the user’s message.
-    # for example, user replies: "What is your name?"
-    user_reply_2 = "What is your name?"
-    prompt_round2 = (
-        f"{prompt_round1}{assistant_response_1}<|im_end|>\n"
-        f"<|im_start|>user\n{user_reply_2}<|im_end|>\n"
-        f"<|im_start|>assistant\n"
+    response = requests.post(
+        API_URL,
+        headers=headers,
+        json=payload,
+        timeout=60,
     )
-    data_round2 = {
-        "inputs": prompt_round2,
-        "parameters": {
-            "max_new_tokens": 50
+
+    response.raise_for_status()
+
+    result = response.json()
+
+    if not isinstance(result, list) or not result:
+        raise ValueError("Unexpected response format from inference endpoint.")
+
+    return result
+
+
+def extract_generated_text(result: list, prompt: str) -> str:
+    """Extract newly generated text from the endpoint response."""
+
+    generated_text = result[0].get("generated_text")
+
+    if not generated_text:
+        raise ValueError("No generated text returned by inference endpoint.")
+
+    if generated_text.startswith(prompt):
+        generated_text = generated_text[len(prompt):]
+
+    return generated_text.strip()
+
+
+def main() -> None:
+    first_user_message = "Hello!"
+
+    prompt_round1 = (
+        "<|im_start|>user\n"
+        f"{first_user_message}"
+        "<|im_end|>\n"
+        "<|im_start|>assistant\n"
+    )
+
+    result_round1 = query(
+        {
+            "inputs": prompt_round1,
+            "parameters": {
+                "max_new_tokens": 50,
+            },
         }
-    }
+    )
 
-    result_round2 = query(data_round2)
-    assistant_response_2 = result_round2[0]["generated_text"].replace(prompt_round2, "")
+    assistant_response_1 = extract_generated_text(
+        result_round1,
+        prompt_round1,
+    )
 
-    # 3) print conversation log
+    second_user_message = "What is your name?"
+
+    prompt_round2 = (
+        f"{prompt_round1}"
+        f"{assistant_response_1}<|im_end|>\n"
+        "<|im_start|>user\n"
+        f"{second_user_message}"
+        "<|im_end|>\n"
+        "<|im_start|>assistant\n"
+    )
+
+    result_round2 = query(
+        {
+            "inputs": prompt_round2,
+            "parameters": {
+                "max_new_tokens": 50,
+            },
+        }
+    )
+
+    assistant_response_2 = extract_generated_text(
+        result_round2,
+        prompt_round2,
+    )
+
     print("----- Conversation Log -----")
-    print("User (round 1): Hello!")
-    print("Assistant (round 1):", assistant_response_1)
-    print("User (round 2):", user_reply_2)
-    print("Assistant (round 2):", assistant_response_2)
+    print(f"User (round 1): {first_user_message}")
+    print(f"Assistant (round 1): {assistant_response_1}")
+    print(f"User (round 2): {second_user_message}")
+    print(f"Assistant (round 2): {assistant_response_2}")
+
 
 if __name__ == "__main__":
     main()
