@@ -1,4 +1,4 @@
-````markdown
+
 # LLM Text Generation Interface
 
 A lightweight Python project for experimenting with local and API-based language model inference.
@@ -231,5 +231,3 @@ Potential future improvements include:
 - support for additional inference providers
 - more robust response parsing
 - deployment as a hosted web application
-````
-
