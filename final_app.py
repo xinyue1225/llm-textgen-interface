@@ -52,7 +52,10 @@ def generate_text(
             }
         )
 
-    output = text_generator(prompt.strip(), **generation_kwargs)
+    output = text_generator(
+        prompt.strip(),
+        **generation_kwargs,
+    )
 
     return output[0]["generated_text"]
 
@@ -97,7 +100,9 @@ def main() -> None:
                 label="Top-p",
             ),
         ],
-        outputs=gr.Textbox(label="Generated Text"),
+        outputs=gr.Textbox(
+            label="Generated Text",
+        ),
         title="LLM Text Generation Interface",
         description=(
             "Generate text locally with GPT-2 using Hugging Face Transformers. "
