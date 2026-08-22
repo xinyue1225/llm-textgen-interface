@@ -1,106 +1,113 @@
 import gradio as gr
 from transformers import pipeline
 
-# -------------------------
-# 1) Load the text generation pipeline (outside of the interface function)
-# -------------------------
+
+# Load the model once when the application starts.
 text_generator = pipeline(
     "text-generation",
     model="gpt2",
 )
 
-def generate_text(prewritten_prompt, custom_prompt, temperature, max_length, top_p):
-    """
-    Generates text using the chosen prompt (either from a dropdown or user input).
-    If temperature=0, we do greedy decoding (do_sample=False).
-    """
 
-    # If the user has selected a non-empty prewritten prompt, use it; otherwise, use the custom prompt
-    if prewritten_prompt and prewritten_prompt != "None":
-        prompt = prewritten_prompt
+PREWRITTEN_PROMPTS = [
+    "None",
+    "Explain machine learning using an everyday example.",
+    "Write a short story about an unexpected journey.",
+    "Suggest three ways to build a productive study routine.",
+]
+
+
+def generate_text(
+    prewritten_prompt: str,
+    custom_prompt: str,
+    temperature: float,
+    max_new_tokens: int,
+    top_p: float,
+) -> str:
+    """Generate text from either a predefined or custom prompt."""
+
+    prompt = (
+        prewritten_prompt
+        if prewritten_prompt and prewritten_prompt != "None"
+        else custom_prompt
+    )
+
+    if not prompt or not prompt.strip():
+        return "Please select a pre-written prompt or enter your own prompt."
+
+    generation_kwargs = {
+        "max_new_tokens": int(max_new_tokens),
+        "pad_token_id": text_generator.tokenizer.eos_token_id,
+    }
+
+    # Temperature 0 uses greedy decoding.
+    if temperature == 0:
+        generation_kwargs["do_sample"] = False
     else:
-        prompt = custom_prompt
+        generation_kwargs.update(
+            {
+                "do_sample": True,
+                "temperature": float(temperature),
+                "top_p": float(top_p),
+            }
+        )
 
-    do_sample = (temperature != 0)
+    output = text_generator(prompt.strip(), **generation_kwargs)
 
-    output = text_generator(
-        prompt,
-        max_length=int(max_length),
-        top_p=float(top_p),
-        temperature=float(temperature),
-        do_sample=do_sample,
-    )
+    return output[0]["generated_text"]
 
-    # output is a list of dicts like [{"generated_text": "..."}]
-    generated_text = output[0]["generated_text"]
-    return generated_text
 
-def main():
-    # 2) Define the new feature: a dropdown of pre-written prompts
-    prewritten_prompt_dropdown = gr.Dropdown(
-        label="Choose a Pre-Written Prompt",
-        choices=["None", "Tell me how to deal with relationship.", "Write a short story about BL.", "Explain machine learning using life examples."],
-        value="None",  # Default selection
-        info="Select one of the prewritten prompts from the dropdown or leave it at 'None' to type your own prompt below."
-    )
-
-    # 3) Existing prompt textbox for custom prompts
-    custom_prompt_input = gr.Textbox(
-        label="Or Type Your Own Prompt",
-        placeholder="Type your custom prompt here...",
-        lines=5
-    )
-
-    temperature_slider = gr.Slider(
-        minimum=0.0,
-        maximum=2.0,
-        value=1.0,
-        step=0.1,
-        label="Temperature"
-    )
-
-    max_length_slider = gr.Slider(
-        minimum=1,
-        maximum=256,
-        value=16,
-        step=1,
-        label="Max Length"
-    )
-
-    top_p_slider = gr.Slider(
-        minimum=0.0,
-        maximum=1.0,
-        value=1.0,
-        step=0.1,
-        label="Top-p"
-    )
-
-    output_text = gr.Textbox(
-        label="Generated Text"
-    )
-
-    # 4) Add an info text (description) about the new feature
-    description_text = (
-        "A Gradio interface that uses a local GPT-2 model to generate text. "
-        "You can select a prewritten prompt or type your own custom prompt. "
-        "Experiment with Temperature and Top-p for deterministic vs. varied outputs."
-    )
-
+def main() -> None:
     interface = gr.Interface(
         fn=generate_text,
         inputs=[
-            prewritten_prompt_dropdown,
-            custom_prompt_input,
-            temperature_slider,
-            max_length_slider,
-            top_p_slider
+            gr.Dropdown(
+                choices=PREWRITTEN_PROMPTS,
+                value="None",
+                label="Pre-Written Prompt",
+                info=(
+                    "Select a sample prompt or choose 'None' "
+                    "to enter a custom prompt."
+                ),
+            ),
+            gr.Textbox(
+                label="Custom Prompt",
+                placeholder="Enter your prompt here...",
+                lines=5,
+            ),
+            gr.Slider(
+                minimum=0.0,
+                maximum=2.0,
+                value=1.0,
+                step=0.1,
+                label="Temperature",
+            ),
+            gr.Slider(
+                minimum=1,
+                maximum=256,
+                value=50,
+                step=1,
+                label="Max New Tokens",
+            ),
+            gr.Slider(
+                minimum=0.0,
+                maximum=1.0,
+                value=1.0,
+                step=0.05,
+                label="Top-p",
+            ),
         ],
-        outputs=output_text,
-        title="Final Text Generation App with Custom Feature",
-        description=description_text,
+        outputs=gr.Textbox(label="Generated Text"),
+        title="LLM Text Generation Interface",
+        description=(
+            "Generate text locally with GPT-2 using Hugging Face Transformers. "
+            "Choose a sample prompt or enter your own, then adjust decoding "
+            "parameters to explore different generation behaviors."
+        ),
     )
 
     interface.launch()
+
 
 if __name__ == "__main__":
     main()
